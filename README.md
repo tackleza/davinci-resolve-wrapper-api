@@ -23,78 +23,103 @@ A FastAPI-based REST API wrapper for DaVinci Resolve, enabling programmatic cont
 
 - **DaVinci Resolve Studio** (free version has limited API access)
 - **Python 3.10–3.12** (Python 3.13+ is NOT supported)
-- **Windows / macOS / Linux**
-
-### Python Dependencies
-
-```
-fastapi==0.115.0
-uvicorn[standard]==0.32.0
-pydantic==2.9.2
-pydantic-settings==2.6.0
-watchdog==4.0.2      # Optional: folder watching
-httpx==0.27.2        # Optional: HTTP client for external systems
-```
 
 ---
 
-## Setup
+## Windows Installation Guide
 
-### 1. Install Python Dependencies
+### Step 1: Install Python
 
-```bash
+1. Download Python 3.12 from [python.org](https://www.python.org/downloads/)
+2. During install, check **"Add Python to PATH"**
+3. Verify:
+   ```cmd
+   python --version
+   ```
+
+### Step 2: Install Dependencies
+
+Open **Command Prompt** and run:
+
+```cmd
+cd C:\Users\YourUsername\Documents\davinci-resolve-wrapper-api
 pip install -r requirements.txt
 ```
 
-### 2. Configure Paths (if needed)
-
-Edit `config.py` to match your DaVinci Resolve installation path, or set environment variables:
-
-**Windows:**
-```cmd
-set RESOLVE_SCRIPT_API=C:\ProgramData\Blackmagic Design\DaVinci Resolve\Support\Developer\Scripting
-set RESOLVE_SCRIPT_LIB=C:\Program Files\Blackmagic Design\DaVinci Resolve\fusionscript.dll
-```
-
-**macOS / Linux:** See `config.py` for the respective paths.
-
-### 3. Enable External Scripting in DaVinci Resolve
+### Step 3: Enable External Scripting in DaVinci Resolve
 
 1. Open DaVinci Resolve
 2. Go to **Preferences → General → External Scripting**
 3. Check **Enable DaVinci Resolve External API**
+4. Restart DaVinci Resolve
 
-### 4. (Optional) Copy Startup Script
+### Step 4: Run the Server
 
-Copy `startup_script.py` to your DaVinci Scripts/Utility folder so the module loads automatically:
-
-- **Windows:** `%APPDATA%\Blackmagic Design\DaVinci Resolve\Support\Scripts\Utility\`
-- **macOS:** `~/Library/Application Support/Blackmagic Design/DaVinci Resolve/Fusion/Scripts/Utility/`
-- **Linux:** `~/.local/share/DaVinciResolve/Fusion/Scripts/Utility/`
-
-### 5. Run the Server
-
-```bash
+```cmd
+cd C:\Users\YourUsername\Documents\davinci-resolve-wrapper-api
 python main.py --host 0.0.0.0 --port 8080
 ```
 
-For production, use `screen` or a systemd service:
+The server will start and DaVinci Resolve will be accessible at:
+- **Local:** `http://localhost:8080`
+- **Network:** `http://YOUR_PC_IP:8080`
 
-```bash
-# Linux systemd example (create /etc/systemd/system/davinci-wrapper.service)
-[Unit]
-Description=DaVinci Resolve Wrapper API
-After=network.target
+To find your PC's IP address: `ipconfig` (look for IPv4 Address under your network adapter)
 
-[Service]
-Type=simple
-User=tackle
-WorkingDirectory=/home/tackle/davinci-wrapper
-ExecStart=/home/tackle/.local/bin/python main.py --host 0.0.0.0 --port 8080
-Restart=always
+### Step 5: (Optional) Auto-start with Windows
 
-[Install]
-WantedBy=multi-user.target
+Create a batch file in your Startup folder:
+
+1. Open Notepad and paste:
+   ```bat
+   @echo off
+   cd /d C:\Users\YourUsername\Documents\davinci-resolve-wrapper-api
+   start /min python main.py --host 0.0.0.0 --port 8080
+   ```
+2. Save as `start_wrapper.bat`
+3. Press `Win + R`, type `shell:startup`, press Enter
+4. Copy the `.bat` file into that folder
+
+Now the API starts automatically when Windows boots.
+
+### Step 6: (Optional) Auto-start Wrapper when DaVinci Opens
+
+Instead of starting with Windows, you can start the wrapper automatically when DaVinci Resolve launches:
+
+1. Copy `startup_script.py` to:
+   ```
+   %APPDATA%\Blackmagic Design\DaVinci Resolve\Support\Scripts\Utility\
+   ```
+   This folder may not exist — create it if needed.
+
+2. When DaVinci Resolve starts, the script will launch the wrapper automatically.
+
+---
+
+## Troubleshooting
+
+### "DaVinci Resolve is not running"
+- Make sure DaVinci Resolve is open before starting the wrapper
+- Enable **External Scripting** in DaVinci Resolve → Preferences → General
+
+### "Module not found: DaVinciResolveScript"
+- The wrapper uses `os.path.expandvars()` to resolve `%PROGRAMDATA%` automatically. If you still get this error, open Command Prompt and run:
+  ```cmd
+  set RESOLVE_SCRIPT_API=C:\ProgramData\Blackmagic Design\DaVinci Resolve\Support\Developer\Scripting
+  python main.py --host 0.0.0.0 --port 8080
+  ```
+
+### Port already in use
+Find and kill the process using port 8080:
+```cmd
+netstat -ano | findstr :8080
+taskkill /PID <PROCESS_ID> /F
+```
+
+### API not accessible from other machines on the network
+Windows Firewall may be blocking port 8080. To allow it, run Command Prompt as Administrator:
+```cmd
+netsh advfirewall firewall add rule name="DaVinci Wrapper API" dir=in action=allow protocol=tcp localport=8080 program="C:\Users\YourUsername\AppData\Local\Programs\Python\Python312\python.exe"
 ```
 
 ---
@@ -181,22 +206,22 @@ WantedBy=multi-user.target
 curl http://localhost:8080/api/resolve/health
 
 # Load a project
-curl -X POST http://localhost:8080/api/projects/load \
-  -H "Content-Type: application/json" \
-  -d '{"project_name": "My Project"}'
+curl -X POST http://localhost:8080/api/projects/load ^
+  -H "Content-Type: application/json" ^
+  -d "{\"project_name\": \"My Project\"}"
 
 # Switch timeline
-curl -X POST http://localhost:8080/api/timeline/current/set \
-  -H "Content-Type: application/json" \
-  -d '{"timeline_name": "Timeline 1"}'
+curl -X POST http://localhost:8080/api/timeline/current/set ^
+  -H "Content-Type: application/json" ^
+  -d "{\"timeline_name\": \"Timeline 1\"}"
 
 # List timelines
 curl http://localhost:8080/api/timeline/list
 
 # Import media
-curl -X POST http://localhost:8080/api/media/import \
-  -H "Content-Type: application/json" \
-  -d '{"items": ["C:/Footage/clip01.mp4", "C:/Footage/clip02.mp4"]}'
+curl -X POST http://localhost:8080/api/media/import ^
+  -H "Content-Type: application/json" ^
+  -d "{\"items\": [\"C:/Footage/clip01.mp4\", \"C:/Footage/clip02.mp4\"]}"
 ```
 
 ### Python
@@ -226,11 +251,11 @@ items = httpx.get(f"{BASE}/api/timeline/1/items").json()
 ## Project Structure
 
 ```
-davinci-wrapper/
+davinci-resolve-wrapper-api/
 ├── main.py                  # Entry point — FastAPI server
 ├── config.py                # Platform-specific paths & settings
 ├── requirements.txt         # Python dependencies
-├── startup_script.py        # DaVinci Resolve startup script
+├── startup_script.py       # DaVinci Resolve startup script (auto-run)
 ├── src/
 │   ├── resolve_connection.py # DaVinci Resolve connection handler
 │   └── api/
@@ -242,33 +267,11 @@ davinci-wrapper/
 │       │   ├── media.py
 │       │   ├── render.py
 │       │   └── fusion.py
-│       └── models/          # Pydantic request/response models
+│       └── models/         # Pydantic request/response models
 ├── REST_API.md             # Full API reference
-└── PLAN.md                 # Project plan
+├── INDEX.md                 # Project overview
+└── PLAN.md                 # Implementation plan (reference)
 ```
-
----
-
-## Troubleshooting
-
-### "DaVinci Resolve is not running"
-- Make sure DaVinci Resolve is open before starting the wrapper
-- Enable **External Scripting** in DaVinci Resolve Preferences → General
-
-### "Module not found: DaVinciResolveScript"
-- Set `RESOLVE_SCRIPT_API` environment variable to your scripting path
-- On Windows: `set RESOLVE_SCRIPT_API=C:\ProgramData\Blackmagic Design\DaVinci Resolve\Support\Developer\Scripting`
-
-### Port already in use
-```bash
-# Find and kill the process using port 8080
-lsof -i :8080   # macOS/Linux
-netstat -ano | findstr :8080   # Windows
-```
-
-### API not accessible from other machines
-- Make sure Windows Firewall allows Python through (port 8080)
-- Or run as Administrator and use `netsh` to add a firewall rule
 
 ---
 
