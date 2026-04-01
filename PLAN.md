@@ -3,6 +3,44 @@
 **Based on:** DaVinci Resolve Scripting API v20.3 (October 2025)
 **Goal:** Expose every method as an HTTP endpoint
 
+---
+
+## 🔜 TODO — Remaining Work (Priority Order)
+
+### High Priority (needed for SB4 render pipeline)
+1. **`GetRenderJobStatus()` returns 0%** — Investigate DaVinci's actual return format. Try `GetRenderJobList()` to get integer IDs, then use those for status calls
+2. **TimelineItem operations** — `GetItemsInTrack()`, `GetTrackCount()`, `SetCurrentTimeline()` index-based, `DeleteTimelines()` by name
+3. **Batch media import** — Add endpoint for batched imports (20 files at a time) to avoid crashes
+4. **File-size polling for render progress** — Implement progress tracking via output file size
+
+### Medium Priority (useful for automation)
+5. **`AppendToTimeline()`** — Add clips directly to timeline without manual linking
+6. **Timeline item retime/trim** — `Retime()`, `SetSpeed()`, `SetDuration()`, `SetStart()`
+7. **Export project as `.drp`** — `POST /api/projects/export` needs testing
+8. **Set timeline name** — `Timeline.SetName()`
+9. **Get timeline range** — `GetStartFrame()`, `GetEndFrame()`
+10. **Render preset save/delete** — `POST /api/render/preset/save`, `/delete`
+11. **Timeline markers** — `POST /api/timeline/{index}/markers/add` needs testing
+
+### Low Priority (nice to have)
+12. **TimelineItem (76+ methods)** — retime curves, keyframes, transforms, crop, compositing, Fusion, takes, etc.
+13. **Fusion node graph** — add/delete/connect nodes (needs Fusion page context)
+14. **Gallery/stills** — album management, still export
+15. **ColorGroup management** — `GetColorGroupsList()`, `AddColorGroup()`, `DeleteColorGroup()`
+16. **Fairlight** — `InsertAudioToCurrentTrackAtPlayhead()`, `ApplyFairlightPresetToCurrentTimeline()`
+17. **Cloud projects** — `CreateCloudProject()`, `LoadCloudProject()`, etc.
+18. **Burn-in presets** — `LoadBurnInPreset()`
+19. **Frame export as still** — `ExportCurrentFrameAsStill()`
+20. **Keyframe mode** — `GetKeyframeMode()`, `SetKeyframeMode()`
+21. **LUT refresh** — `RefreshLUTList()`
+22. **Clip versions** — `AddVersion()`, `GetVersions()`, `DeleteVersion()`
+
+### Documentation Only
+- Add more endpoint examples to `davinci-api-test-results.md`
+- Write usage guide for batch media import
+
+---
+
 ## Test Status
 - **Fully tested:** Most core endpoints — see `notes/davinci-api-test-results.md`
 - **Not tested:** Project export/archive/restore, render preset save/delete, specific clip metadata endpoints, timeline markers add, layout preset update/delete, render preset import/export
