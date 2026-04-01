@@ -105,6 +105,13 @@ class RenderJobStatusResponse(BaseModel):
     job_id: str
     status: str
     completion_percent: Optional[float] = None
+    # Extended fields from DaVinci GetRenderJobStatus
+    job_name: Optional[str] = None
+    output_path: Optional[str] = None
+    frame_total: Optional[int] = None
+    frame_completed: Optional[int] = None
+    time_remaining_seconds: Optional[int] = None
+    error_message: Optional[str] = None
 
 
 # ─── Quick Export ────────────────────────────────────────────────────────────

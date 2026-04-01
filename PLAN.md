@@ -3,6 +3,33 @@
 **Based on:** DaVinci Resolve Scripting API v20.3 (October 2025)
 **Goal:** Expose every method as an HTTP endpoint
 
+## Test Status
+- **Fully tested:** Most core endpoints — see `notes/davinci-api-test-results.md`
+- **Not tested:** Project export/archive/restore, render preset save/delete, specific clip metadata endpoints, timeline markers add, layout preset update/delete, render preset import/export
+- **Not implemented:** TimelineItem (76+ methods), Gallery, Fusion/Graph, ColorGroup, various Project settings methods
+
+### Untested Endpoints (implemented):
+- `POST /api/projects/export`, `/archive`, `/restore`
+- `POST /api/projects/folders/create`, `/delete`
+- `POST /api/resolve/render-preset/import`, `/export`
+- `POST /api/resolve/layout-preset/update`, `/delete`
+- `POST /api/resolve/quit`
+- `POST /api/render/preset/save`, `/delete`
+- `POST /api/render/job/delete` (specific job)
+- `GET /api/render/quick-export-presets`
+- `GET /api/timeline/{index}/fusion/node-graph` (needs Fusion page)
+- `POST /api/timeline/{index}/markers/add`
+- Various clip metadata endpoints: flags, color, markers, audio sync
+
+---
+
+## Known Issues
+
+- **`GetRenderJobStatus()` returns null/Unknown**: DaVinci's `GetRenderJobStatus(jobId)` returns `None` for the status dict when called with the job ID returned by `AddRenderJob()`. The job ID from `AddRenderJob()` appears to be a UUID/string, but DaVinci internally uses integer IDs. Workaround: file-size polling on output file to track progress. (2026-04-01)
+- **`GetRenderJobList()` keys are capitalised**: DaVinci returns `JobId` (capital I), `OutputPath`, `Status` — not lowercase. Wrapper now handles both cases. (2026-04-01)
+- **Bulk media import crashes DaVinci**: Importing 200+ files via `AddItemListToMediaPool()` in one call causes DaVinci to freeze/crash. Import in batches of ~20 files. (2026-04-01)
+- **`Proxy Media Path` causes offline clips**: Icepha's projects store proxy paths as `D:\GoodSync\...` which don't exist on Tackle's machine. DaVinci checks proxy path before File Path. Fix: copy proxy files to match the expected paths. (2026-04-01)
+
 ---
 
 ## API Classes & Coverage Status

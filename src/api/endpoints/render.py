@@ -75,12 +75,16 @@ async def get_render_settings():
     project = rc.get_project()
     fc = project.GetCurrentRenderFormatAndCodec() or {}
     mode = project.GetCurrentRenderMode()
+    # Get full render settings including TargetDir, CustomName, etc.
+    all_settings = project.GetRenderSettings() or {}
     return RenderSettingsResponse(
         format=fc.get("format"),
         codec=fc.get("codec"),
         render_mode=mode,
-        export_video=True,
-        export_audio=True,
+        export_video=all_settings.get("ExportVideo", True),
+        export_audio=all_settings.get("ExportAudio", True),
+        target_dir=all_settings.get("TargetDir"),
+        custom_name=all_settings.get("CustomName"),
     )
 
 
@@ -198,10 +202,12 @@ async def list_render_jobs():
     jobs = project.GetRenderJobList() or []
     result = []
     for job in jobs:
+        # DaVinci uses "JobId" (capital I), not "jobId"
+        job_id = job.get("JobId") or job.get("jobId") or job.get("Id") or ""
         result.append(RenderJobInfo(
-            job_id=job.get("jobId", ""),
-            output_path=job.get("OutputPath", ""),
-            status=job.get("Status", ""),
+            job_id=str(job_id) if job_id else "",
+            output_path=job.get("OutputPath") or job.get("output_path") or "",
+            status=job.get("Status") or job.get("status") or "",
         ))
     return RenderJobListResponse(jobs=result)
 
@@ -210,8 +216,11 @@ async def list_render_jobs():
 async def add_render_job():
     """Add a render job based on current render settings to the queue."""
     project = rc.get_project()
-    job_id = project.AddRenderJob()
-    return {"success": True, "job_id": job_id}
+    # Add job and get the new job's ID
+    new_job_id = project.AddRenderJob()
+    # new_job_id may be an integer (the actual DaVinci job ID)
+    # Return it as string for consistent API response
+    return {"success": True, "job_id": str(new_job_id) if new_job_id else None}
 
 
 @router.post("/job/delete")
@@ -266,11 +275,22 @@ async def get_render_status():
 async def get_job_status(job_id: str):
     """Get detailed status and completion percentage of a render job."""
     project = rc.get_project()
-    status = project.GetRenderJobStatus(job_id) or {}
+    # DaVinci expects integer job ID, not string/UUID
+    try:
+        int_job_id = int(job_id)
+    except (ValueError, TypeError):
+        int_job_id = job_id
+    status = project.GetRenderJobStatus(int_job_id) or {}
     return RenderJobStatusResponse(
         job_id=job_id,
-        status=status.get("status", "Unknown"),
-        completion_percent=status.get("completion", 0.0),
+        status=status.get("Status") or status.get("status") or "Unknown",
+        completion_percent=status.get("Completion") or status.get("completion") or 0.0,
+        job_name=status.get("JobName") or status.get("job_name"),
+        output_path=status.get("OutputPath") or status.get("output_path"),
+        frame_total=status.get("FrameTotal") or status.get("frame_total"),
+        frame_completed=status.get("FrameCompleted") or status.get("frame_completed"),
+        time_remaining_seconds=status.get("TimeRemaining") or status.get("time_remaining"),
+        error_message=status.get("Error") or status.get("error"),
     )
 
 
