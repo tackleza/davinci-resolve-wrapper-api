@@ -62,6 +62,13 @@ class ClipNotFoundError(ResolveError):
         super().__init__(f"Clip not found: '{clip_id}'", code="CLIP_NOT_FOUND")
 
 
+class TimelineItemNotFoundError(ResolveError):
+    """Raised when a timeline item cannot be found by its position."""
+
+    def __init__(self, detail: str = ""):
+        super().__init__(f"Timeline item not found: {detail}", code="TIMELINE_ITEM_NOT_FOUND")
+
+
 class InvalidPageError(ResolveError):
     """Raised when an invalid page name is provided."""
 

@@ -40,6 +40,9 @@ _media_storage: Optional[Any] = None
 # Track clips by their MediaPoolItem ID string
 _clip_registry: dict[str, Any] = {}  # media_id -> MediaPoolItem
 
+# Track timeline items by composite key: (timeline_index, track_type, track_index, item_index) -> TimelineItem
+_timeline_item_registry: dict[tuple, Any] = {}
+
 
 def _setup_environment() -> None:
     """
@@ -327,3 +330,43 @@ def get_all_registered_clips() -> dict[str, dict]:
 def clear_clip_registry() -> None:
     """Clear all registered clips."""
     _clip_registry.clear()
+
+
+# ─── TimelineItem Registry ────────────────────────────────────────────────────
+
+def get_timeline_item(timeline_index: int, track_type: str, track_index: int, item_index: int) -> tuple[Any, int]:
+    """
+    Get a TimelineItem by its position in a track.
+
+    Returns (TimelineItem, start_frame) tuple.
+    Raises TimelineItemNotFoundError if not found.
+    """
+    project = get_project()
+    tl = project.GetTimelineByIndex(timeline_index)
+    if not tl:
+        raise TimelineNotFoundError(f"Timeline {timeline_index}")
+
+    items = tl.GetItemsInTrack(track_type, track_index) or {}
+    if item_index < 1 or item_index > len(items):
+        raise TimelineItemNotFoundError(
+            f"Item index {item_index} out of range for track {track_type}:{track_index} "
+            f"(total {len(items)} items)"
+        )
+
+    # items is dict {start_frame: TimelineItem}
+    sorted_starts = sorted(items.keys())
+    start_frame = sorted_starts[item_index - 1]
+    item = items[start_frame]
+
+    key = (timeline_index, track_type, track_index, item_index)
+    _timeline_item_registry[key] = item
+    return item, start_frame
+
+
+def get_timeline_by_index(timeline_index: int) -> Any:
+    """Get a timeline by its 1-based index."""
+    project = get_project()
+    tl = project.GetTimelineByIndex(timeline_index)
+    if not tl:
+        raise TimelineNotFoundError(f"Timeline {timeline_index}")
+    return tl

@@ -5,7 +5,8 @@ POST /api/render/*
 """
 
 import logging
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException
+from src.models.timeline_models import RenderProgressResponse, Query
 
 import src.resolve_connection as rc
 from src.models.timeline_models import (
@@ -291,6 +292,88 @@ async def get_job_status(job_id: str):
         frame_completed=status.get("FrameCompleted") or status.get("frame_completed"),
         time_remaining_seconds=status.get("TimeRemaining") or status.get("time_remaining"),
         error_message=status.get("Error") or status.get("error"),
+    )
+
+
+# ─── Render Progress (File Size Polling) ───────────────────────────────────
+
+@router.get("/progress", response_model=RenderProgressResponse)
+async def get_render_progress():
+    """
+    Estimate render progress by polling the output file size.
+
+    Since GetRenderJobStatus() returns 0% completion in the DaVinci API,
+    this endpoint monitors the actual output file on disk to track progress.
+
+    Requires target_dir and custom_name to be set via POST /api/render/settings first.
+    Estimates total size based on project frame count and last known render settings.
+    """
+    import os
+
+    project = rc.get_project()
+    if not project:
+        raise HTTPException(status_code=400, detail="No project open")
+
+    tl = project.GetCurrentTimeline()
+    if not tl:
+        raise HTTPException(status_code=400, detail="No current timeline")
+
+    # Check if rendering is actually in progress
+    is_rendering = project.IsRenderingInProgress()
+
+    # Get render settings to find output path
+    settings = project.GetRenderSettings() or {}
+    target_dir = settings.get("TargetDir", "")
+    custom_name = settings.get("CustomName", "")
+
+    if not target_dir or not custom_name:
+        return RenderProgressResponse(
+            rendering=is_rendering,
+            output_path=None,
+            file_exists=False,
+            file_size_bytes=0,
+            file_size_mb=0.0,
+            estimated_total_mb=None,
+            progress_percent=None,
+            note="No render output path set. Use POST /api/render/settings first.",
+        )
+
+    # Build expected output path — handle both Windows and Linux path representations
+    target_dir_clean = target_dir.replace("/", "\\")
+    output_name = f"{custom_name}.mp4"
+    output_path = os.path.join(target_dir, output_name)
+
+    file_exists = os.path.exists(output_path)
+    file_size_bytes = os.path.getsize(output_path) if file_exists else 0
+    file_size_mb = round(file_size_bytes / (1024 * 1024), 2)
+
+    # Estimate total size from timeline frame count
+    frame_rate = project.GetSetting("timelineFrameRate") or 30.0
+    frame_count = tl.GetEndFrame() - tl.GetStartFrame()
+    duration_seconds = frame_count / frame_rate
+
+    # Estimate ~50 Mbps for 4K H.264 — rough average for YouTube 2160p preset
+    bitrate_mbps = 50.0
+    estimated_total_mb = round((bitrate_mbps * duration_seconds) / 8, 2)
+
+    progress_percent = None
+    if estimated_total_mb > 0:
+        progress_percent = min(round((file_size_mb / estimated_total_mb) * 100, 1), 99.9)
+
+    note = None
+    if not is_rendering and file_exists and file_size_mb > 0:
+        progress_percent = 100.0
+        note = "Render complete"
+
+    return RenderProgressResponse(
+        rendering=is_rendering,
+        output_path=output_path,
+        file_exists=file_exists,
+        file_size_bytes=file_size_bytes,
+        file_size_mb=file_size_mb,
+        estimated_total_mb=estimated_total_mb,
+        progress_percent=progress_percent,
+        note=note,
     )
 
 

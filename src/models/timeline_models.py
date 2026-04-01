@@ -216,3 +216,95 @@ class TimelineItemsResponse(BaseModel):
 class FusionNodeAddRequest(BaseModel):
     node_type: str
     node_name: Optional[str] = None
+
+
+# ─── Timeline Item Operations ───────────────────────────────────────────────────
+
+class TimelineItemSetStartRequest(BaseModel):
+    track_type: str  # "video", "audio", or "subtitle"
+    track_index: int  # 1-based
+    item_index: int  # 1-based position in the track's item list
+    start: int  # new start frame
+
+
+class TimelineItemSetDurationRequest(BaseModel):
+    track_type: str
+    track_index: int
+    item_index: int
+    duration: int  # new duration in frames
+
+
+class TimelineItemRetimeRequest(BaseModel):
+    track_type: str
+    track_index: int
+    item_index: int
+    speed_percent: float  # e.g. 100.0 = normal, 50.0 = half speed, 200.0 = double speed
+
+
+class TimelineItemSetSpeedRequest(BaseModel):
+    track_type: str
+    track_index: int
+    item_index: int
+    speed: float  # speed as ratio, e.g. 1.0 = normal, 0.5 = half speed
+
+
+class TimelineItemTrimRequest(BaseModel):
+    track_type: str
+    track_index: int
+    item_index: int
+    head_trim: int = 0  # frames to trim from head (start)
+    tail_trim: int = 0  # frames to trim from tail (end)
+
+
+class TimelineItemRepositionRequest(BaseModel):
+    track_type: str
+    track_index: int
+    item_index: int
+    new_start: int  # new start frame on the timeline
+
+
+class TimelineItemResizeRequest(BaseModel):
+    track_type: str
+    track_index: int
+    item_index: int
+    new_duration: int  # new duration in frames
+    keep_retime: bool = False  # if True, keep current speed adjustment
+
+
+class TimelineItemPropertiesResponse(BaseModel):
+    name: str
+    duration: int
+    start: int
+    end: int
+    media_name: Optional[str] = None
+    media_id: Optional[str] = None
+    speed_percent: Optional[float] = None
+    flags: Optional[list[str]] = None
+    color: Optional[str] = None
+    track_type: str
+    track_index: int
+    item_index: int
+
+
+class TimelineItemOperationResponse(BaseModel):
+    success: bool
+    message: str
+
+
+class RenderProgressResponse(BaseModel):
+    """Render progress estimated from output file growth."""
+    rendering: bool
+    output_path: str | None = None
+    file_exists: bool
+    file_size_bytes: int = 0
+    file_size_mb: float = 0.0
+    estimated_total_mb: float | None = None  # estimated from project duration / bitrate
+    progress_percent: float | None = None  # if estimated_total is available
+    note: str | None = None
+
+
+class TimelineTrackInfo(BaseModel):
+    track_type: str  # "video", "audio", or "subtitle"
+    track_index: int  # 1-based
+    track_name: Optional[str] = None
+    item_count: int

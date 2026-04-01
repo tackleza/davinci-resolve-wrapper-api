@@ -34,6 +34,8 @@ from src.models.media_models import (
     ClipListResponse,
     ClipInfo,
     AutoSyncAudioRequest,
+    BatchImportRequest,
+    BatchImportResult,
 )
 
 logger = logging.getLogger(__name__)
@@ -444,6 +446,88 @@ async def move_clips(body: ClipMoveRequest):
 
     result = mp.MoveClips(clips, target_folder)
     return {"success": bool(result)}
+
+
+# ─── Batch Import ───────────────────────────────────────────────────────────
+
+@router.post("/import/batch", response_model=BatchImportResult)
+async def batch_import(body: BatchImportRequest):
+    """
+    Import all media files from a folder in batches.
+
+    DaVinci crashes when importing 200+ files at once via AddItemListToMediaPool().
+    This endpoint splits the import into smaller batches to avoid the crash.
+
+    Supported extensions: mp4, mov, mp3, wav, mkv, avi, mxf, webm, exr, dpx, png, jpg, tif
+
+    Example:
+    {
+        "folder_path": "Y:/Video Editing Job/3. Waiting For Render/sb4-12",
+        "batch_size": 20,
+        "recursive": False,
+        "extensions": ["mp4", "mov", "mp3"]
+    }
+    """
+    import os
+    import glob
+
+    SUPPORTED_EXTENSIONS = {
+        "mp4", "mov", "mp3", "wav", "aac", "m4a",
+        "mkv", "avi", "mxf", "webm",
+        "exr", "dpx", "png", "jpg", "jpeg", "tif", "tiff", "tga",
+        "mpg", "mpeg", "flv", "wmv"
+    }
+
+    folder = body.folder_path.replace("\\", "/")
+    extensions = set(ext.lower().lstrip(".") for ext in (body.extensions or SUPPORTED_EXTENSIONS))
+    patterns = [f"*.{ext}" for ext in extensions]
+
+    files = []
+    for pattern in patterns:
+        if body.recursive:
+            files.extend(glob.glob(os.path.join(folder, "**", pattern), recursive=True))
+        else:
+            files.extend(glob.glob(os.path.join(folder, pattern)))
+
+    files = sorted(set(files))
+    total = len(files)
+
+    if total == 0:
+        return BatchImportResult(
+            success=True,
+            total_files=0,
+            imported_clips=0,
+            failed_files=0,
+            batches=0,
+            errors=["No media files found in folder"],
+        )
+
+    ms = rc.get_media_storage()
+    imported = 0
+    failed = 0
+    errors = []
+    batch_size = max(1, min(body.batch_size, 50))  # clamp to 1-50
+
+    for i in range(0, total, batch_size):
+        batch = files[i : i + batch_size]
+        batch_num = (i // batch_size) + 1
+
+        try:
+            clips = ms.AddItemListToMediaPool(batch)
+            if clips:
+                imported += len(clips)
+        except Exception as e:
+            failed += len(batch)
+            errors.append(f"Batch {batch_num} failed: {str(e)}")
+
+    return BatchImportResult(
+        success=(failed == 0),
+        total_files=total,
+        imported_clips=imported,
+        failed_files=failed,
+        batches=(total + batch_size - 1) // batch_size,
+        errors=errors,
+    )
 
 
 # ─── Auto Sync Audio ────────────────────────────────────────────────────────

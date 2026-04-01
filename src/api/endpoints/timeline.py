@@ -23,6 +23,14 @@ from src.models.timeline_models import (
     TimelineItemsResponse,
     TimelineItemInfo,
     FusionNodeAddRequest,
+    TimelineItemSetStartRequest,
+    TimelineItemSetDurationRequest,
+    TimelineItemRetimeRequest,
+    TimelineItemTrimRequest,
+    TimelineItemRepositionRequest,
+    TimelineItemPropertiesResponse,
+    TimelineItemOperationResponse,
+    TimelineTrackInfo,
 )
 
 logger = logging.getLogger(__name__)
@@ -249,6 +257,232 @@ async def add_timeline_marker(timeline_index: int, body: TimelineAddMarkerReques
         body.note, body.duration, body.custom_data
     )
     return {"success": bool(result)}
+
+
+# ─── Timeline Item Operations ────────────────────────────────────────────────────
+
+@router.get("/{index}/tracks", response_model=list[TimelineTrackInfo])
+async def get_timeline_tracks(index: int):
+    """
+    List all tracks in a timeline with item counts.
+
+    Useful for knowing what tracks exist before operating on specific items.
+    """
+    import src.resolve_connection as rc_conn
+    try:
+        tl = rc_conn.get_timeline_by_index(index)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    tracks = []
+    for track_type in ["video", "audio", "subtitle"]:
+        for track_index in range(1, 9999):
+            items = tl.GetItemsInTrack(track_type, track_index) or {}
+            if not items:
+                break
+            try:
+                track_name = tl.GetTrackName(track_type, track_index)
+            except Exception:
+                track_name = None
+            tracks.append(TimelineTrackInfo(
+                track_type=track_type,
+                track_index=track_index,
+                track_name=track_name,
+                item_count=len(items),
+            ))
+    return tracks
+
+
+@router.get("/{index}/track/{track_type}/{track_index}/items", response_model=list[TimelineItemPropertiesResponse])
+async def get_track_items(index: int, track_type: str, track_index: int):
+    """
+    Get all items in a specific track with their properties.
+
+    track_type: "video", "audio", or "subtitle"
+    track_index: 1-based track number
+    """
+    import src.resolve_connection as rc_conn
+    try:
+        tl = rc_conn.get_timeline_by_index(index)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    items_dict = tl.GetItemsInTrack(track_type, track_index) or {}
+    result = []
+    for item_index, (start, item) in enumerate(
+        sorted(items_dict.items(), key=lambda x: x[0]), start=1
+    ):
+        try:
+            media_name = item.GetName()
+        except Exception:
+            media_name = None
+
+        try:
+            media_id_str = str(item.GetMediaId())
+        except Exception:
+            media_id_str = None
+
+        try:
+            speed = item.GetSpeed()
+            speed_percent = round(speed * 100, 2)
+        except Exception:
+            speed_percent = None
+
+        try:
+            flags = item.GetFlagList()
+        except Exception:
+            flags = None
+
+        try:
+            color = item.GetColor()
+        except Exception:
+            color = None
+
+        result.append(TimelineItemPropertiesResponse(
+            name=media_name or "",
+            duration=item.GetDuration(),
+            start=item.GetStart(),
+            end=item.GetEnd(),
+            media_name=media_name,
+            media_id=media_id_str,
+            speed_percent=speed_percent,
+            flags=flags,
+            color=color,
+            track_type=track_type,
+            track_index=track_index,
+            item_index=item_index,
+        ))
+    return result
+
+
+@router.post("/{index}/item/{track_type}/{track_index}/{item_index}/set-start", response_model=TimelineItemOperationResponse)
+async def item_set_start(
+    index: int, track_type: str, track_index: int, item_index: int,
+    body: TimelineItemSetStartRequest,
+):
+    """Move a timeline item to a new start frame."""
+    import src.resolve_connection as rc_conn
+    try:
+        item, _ = rc_conn.get_timeline_item(index, track_type, track_index, item_index)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    try:
+        item.SetStart(body.start)
+        return TimelineItemOperationResponse(success=True, message=f"Moved to frame {body.start}")
+    except Exception as e:
+        return TimelineItemOperationResponse(success=False, message=str(e))
+
+
+@router.post("/{index}/item/{track_type}/{track_index}/{item_index}/retime", response_model=TimelineItemOperationResponse)
+async def item_retime(
+    index: int, track_type: str, track_index: int, item_index: int,
+    body: TimelineItemRetimeRequest,
+):
+    """
+    Retime a timeline item by speed percentage.
+
+    speed_percent: e.g. 50.0 = half speed (2x duration), 200.0 = double speed (0.5x duration)
+    """
+    import src.resolve_connection as rc_conn
+    try:
+        item, _ = rc_conn.get_timeline_item(index, track_type, track_index, item_index)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    try:
+        speed_ratio = body.speed_percent / 100.0
+        item.SetSpeed(speed_ratio)
+        return TimelineItemOperationResponse(
+            success=True,
+            message=f"Speed set to {body.speed_percent}%"
+        )
+    except Exception as e:
+        return TimelineItemOperationResponse(success=False, message=str(e))
+
+
+@router.post("/{index}/item/{track_type}/{track_index}/{item_index}/set-duration", response_model=TimelineItemOperationResponse)
+async def item_set_duration(
+    index: int, track_type: str, track_index: int, item_index: int,
+    body: TimelineItemSetDurationRequest,
+):
+    """
+    Set item duration by trimming. Adjusts the tail (end) of the clip.
+
+    duration: new duration in frames
+    """
+    import src.resolve_connection as rc_conn
+    try:
+        item, start = rc_conn.get_timeline_item(index, track_type, track_index, item_index)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    try:
+        # SetEnd changes the end frame, keeping start the same
+        item.SetEnd(body.duration + start)
+        return TimelineItemOperationResponse(
+            success=True,
+            message=f"Duration set to {body.duration} frames"
+        )
+    except Exception as e:
+        return TimelineItemOperationResponse(success=False, message=str(e))
+
+
+@router.post("/{index}/item/{track_type}/{track_index}/{item_index}/trim", response_model=TimelineItemOperationResponse)
+async def item_trim(
+    index: int, track_type: str, track_index: int, item_index: int,
+    body: TimelineItemTrimRequest,
+):
+    """
+    Trim frames from the head (start) and/or tail (end) of a timeline item.
+
+    head_trim: frames to add/remove from the start (positive = trim into clip, negative = add handle)
+    tail_trim: frames to add/remove from the end (positive = trim clip shorter)
+    """
+    import src.resolve_connection as rc_conn
+    try:
+        item, start = rc_conn.get_timeline_item(index, track_type, track_index, item_index)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    try:
+        original_duration = item.GetDuration()
+        new_start = start + body.head_trim
+        new_end = start + original_duration - body.tail_trim
+
+        item.SetStart(new_start)
+        item.SetEnd(new_end)
+
+        return TimelineItemOperationResponse(
+            success=True,
+            message=f"Trimmed: head {body.head_trim:+d}, tail {body.tail_trim:+d}"
+        )
+    except Exception as e:
+        return TimelineItemOperationResponse(success=False, message=str(e))
+
+
+@router.post("/{index}/item/{track_type}/{track_index}/{item_index}/reposition", response_model=TimelineItemOperationResponse)
+async def item_reposition(
+    index: int, track_type: str, track_index: int, item_index: int,
+    body: TimelineItemRepositionRequest,
+):
+    """Move an item to a new position on the timeline without changing its duration."""
+    import src.resolve_connection as rc_conn
+    try:
+        item, old_start = rc_conn.get_timeline_item(index, track_type, track_index, item_index)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    try:
+        duration = item.GetDuration()
+        item.SetStart(body.new_start)
+        item.SetEnd(body.new_start + duration)
+        return TimelineItemOperationResponse(
+            success=True,
+            message=f"Moved from frame {old_start} to {body.new_start}"
+        )
+    except Exception as e:
+        return TimelineItemOperationResponse(success=False, message=str(e))
 
 
 # ─── Fusion ───────────────────────────────────────────────────────────────────

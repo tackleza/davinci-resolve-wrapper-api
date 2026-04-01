@@ -8,10 +8,27 @@
 ## 🔜 TODO — Remaining Work (Priority Order)
 
 ### High Priority (needed for SB4 render pipeline)
-1. **`GetRenderJobStatus()` returns 0%** — Investigate DaVinci's actual return format. Try `GetRenderJobList()` to get integer IDs, then use those for status calls
-2. **TimelineItem operations** — `GetItemsInTrack()`, `GetTrackCount()`, `SetCurrentTimeline()` index-based, `DeleteTimelines()` by name
-3. **Batch media import** — Add endpoint for batched imports (20 files at a time) to avoid crashes
-4. **File-size polling for render progress** — Implement progress tracking via output file size
+1. **`GetRenderJobStatus()` returns 0%** — DaVinci's `GetRenderJobStatus()` still returns 0% completion. Wrapper fix applied (capitalised keys, int job ID), needs VM to test
+2. ~~TimelineItem operations~~ — ✅ Implemented (code done, needs VM to test):
+   - `GET /api/timeline/{index}/tracks` — list all tracks with item counts
+   - `GET /api/timeline/{index}/track/{type}/{idx}/items` — get all items in a track with properties
+   - `POST /api/timeline/{index}/item/{type}/{idx}/{item}/set-start` — move item on timeline
+   - `POST /api/timeline/{index}/item/{type}/{idx}/{item}/retime` — change speed %
+   - `POST /api/timeline/{index}/item/{type}/{idx}/{item}/set-duration` — trim end
+   - `POST /api/timeline/{index}/item/{type}/{idx}/{item}/trim` — trim head+tail
+   - `POST /api/timeline/{index}/item/{type}/{idx}/{item}/reposition` — move without duration change
+3. ~~Batch media import~~ — ✅ Implemented: `POST /api/media/import/batch` — imports in batches of 20 to avoid DaVinci crash
+4. ~~File-size polling for render progress~~ — ✅ Implemented: `GET /api/render/progress` — monitors output file size to estimate %
+
+### Medium Priority
+5. **`AppendToTimeline()`** — Add clips directly to timeline without manual linking (needs testing)
+6. ~~Timeline retime/trim~~ — Covered by TimelineItem ops above (needs testing)
+7. ~~Project export as `.drp`~~ — Implemented as endpoint, needs testing
+8. **Set timeline name** — `Timeline.SetName()` endpoint
+9. **Get timeline range** — `GetStartFrame()`, `GetEndFrame()`
+10. **Render preset save/delete** — `POST /api/render/preset/save`, `/delete` (needs testing)
+11. **Timeline markers add** — `POST /api/timeline/{index}/markers/add` (needs testing)
+12. **Get timeline by index** — `GET /api/timeline/{index}`
 
 ### Medium Priority (useful for automation)
 5. **`AppendToTimeline()`** — Add clips directly to timeline without manual linking

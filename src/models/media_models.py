@@ -164,6 +164,33 @@ class VolumesResponse(BaseModel):
     volumes: list[str]
 
 
+# ─── Batch Import ───────────────────────────────────────────────────────────
+
+class BatchImportRequest(BaseModel):
+    """Import files in batches to avoid DaVinci crashes."""
+    folder_path: str  # folder containing files to import
+    batch_size: int = 20  # files per batch
+    recursive: bool = False  # include subfolders
+    extensions: Optional[list[str]] = None  # filter by extension e.g. ["mp4", "mov", "mp3"]
+
+
+class BatchImportProgress(BaseModel):
+    total_files: int
+    imported: int
+    batch_num: int
+    current_batch: int
+    current_file: str
+
+
+class BatchImportResult(BaseModel):
+    success: bool
+    total_files: int
+    imported_clips: int
+    failed_files: int
+    batches: int
+    errors: list[str]
+
+
 # ─── Auto Sync Audio ─────────────────────────────────────────────────────────
 
 class AutoSyncAudioRequest(BaseModel):
