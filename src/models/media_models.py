@@ -35,6 +35,11 @@ class ImportMediaResponse(BaseModel):
     total: int
 
 
+class ImportDavinciRequest(BaseModel):
+    """Request body for /api/media/import-davinci — uses MediaPool.ImportMediaIntoMediaPool."""
+    paths: list[str]  # absolute file paths, e.g. ["Y:\\Video Editing Job\\sb4-13\\video.mp4"]
+
+
 # ─── Clip ─────────────────────────────────────────────────────────────────────
 
 class ClipInfo(BaseModel):

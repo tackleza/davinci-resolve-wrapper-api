@@ -36,6 +36,7 @@ from src.models.media_models import (
     AutoSyncAudioRequest,
     BatchImportRequest,
     BatchImportResult,
+    ImportDavinciRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -136,6 +137,29 @@ async def import_media(body: ImportMediaRequest):
             except Exception:
                 imported.append(ImportedClip(name="unknown", media_id=info))
 
+    return ImportMediaResponse(imported_clips=imported, total=len(imported))
+
+
+@router.post("/import-davinci", response_model=ImportMediaResponse)
+async def import_media_davinci(body: ImportDavinciRequest):
+    """
+    Import files directly via MediaPool.ImportMediaIntoMediaPool (DaVinci-native).
+    This imports files from the file system directly into the current MediaPool folder,
+    bypassing MediaStorage. Use this when MediaStorage paths are unavailable.
+
+    Args:
+        paths: List of absolute file paths, e.g. ["Y:\\Video Editing Job\\sb4-13\\video.mp4"]
+    """
+    mp = rc.get_media_pool()
+    clips = mp.ImportMediaIntoMediaPool(body.paths)
+    imported = []
+    for clip in clips:
+        if clip:
+            info = rc.register_clip(clip)
+            try:
+                imported.append(ImportedClip(name=clip.GetName(), media_id=info))
+            except Exception:
+                imported.append(ImportedClip(name="unknown", media_id=info))
     return ImportMediaResponse(imported_clips=imported, total=len(imported))
 
 
