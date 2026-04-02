@@ -172,12 +172,11 @@ async def get_media_pool():
         current = mp.GetCurrentFolder()
         root = mp.GetRootFolder()
 
-        # Build full path: walk from root to current
-        # Use tracked path (SetCurrentFolder tracks path via /api/media/navigate)
-        # Fall back to folder name if no tracked path
-        tracked_path = rc.get_mp_folder_path()
-        current_name = tracked_path if tracked_path else (current.GetName() if current else None)
+        # Build full path: walk from root to current using GetParentFolder chain
         root_name = root.GetName() if root else None
+        current_name = rc.get_mp_folder_path()  # use tracked path for accurate path
+        if not current_name:
+            current_name = current.GetName() if current else None
 
         # Subfolders of CURRENT folder, not root
         subfolders = []
