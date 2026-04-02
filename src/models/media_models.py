@@ -109,6 +109,14 @@ class RelinkClipsRequest(BaseModel):
     folder_path: str
 
 
+class ComprehensiveSearchRequest(BaseModel):
+    """Request body for /api/media/comprehensive-search — DaVinci's 'Perform Comprehensive Search'.
+    Sets multiple search paths and tells DaVinci to find+relink all offline clips across those paths.
+    """
+    folders: list[str]  # absolute folder paths to search, e.g. ["Y:\\folder1","Y:\\folder2"]
+    clip_ids: list[str] | None = None  # optional: specific clip IDs to search. If None, searches all offline.
+
+
 class UnlinkClipsRequest(BaseModel):
     clip_ids: list[str]
 

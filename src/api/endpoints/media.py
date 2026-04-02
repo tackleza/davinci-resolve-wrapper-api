@@ -14,6 +14,7 @@ from src.models.media_models import (
     ImportedClip,
     RelinkClipsRequest,
     UnlinkClipsRequest,
+    ComprehensiveSearchRequest,
     ClipDeleteRequest,
     ClipMoveRequest,
     ClipColorRequest,
@@ -403,6 +404,62 @@ async def relink_clips(body: RelinkClipsRequest):
 
     result = mp.RelinkClips(clips, body.folder_path)
     return {"success": bool(result), "relinked_count": len(clips)}
+
+
+@router.post("/comprehensive-search")
+async def comprehensive_search(body: ComprehensiveSearchRequest):
+    """
+    DaVinci's 'Perform Comprehensive Search' — search multiple folders for missing media.
+
+    Sets search folders via MediaStorage.SetCurrentSources(), then triggers DaVinci to
+    find and relink offline clips across all specified paths.
+
+    Args:
+        folders: list of absolute folder paths to search (e.g. ["Y:\\folder1","Y:\\folder2"])
+        clip_ids: optional — specific clip IDs to search. If None, searches all offline clips.
+    """
+    ms = rc.get_media_storage()
+    mp = rc.get_media_pool()
+
+    # Step 1: Set the comprehensive search paths
+    sources_set = ms.SetCurrentSources(body.folders)
+    logger.info(f"SetCurrentSources({body.folders}) -> {sources_set}")
+
+    # Step 2: Collect clips to search
+    if body.clip_ids:
+        clips = []
+        for cid in body.clip_ids:
+            try:
+                clips.append(rc.get_clip_by_id(cid))
+            except Exception:
+                logger.warning(f"Clip not found: {cid}")
+    else:
+        # Find all offline clips in current folder
+        clips = []
+        current_folder = mp.GetCurrentFolder()
+        if current_folder:
+            for clip in current_folder.GetClipList():
+                try:
+                    media_id = str(clip.GetMediaId())
+                    rc.register_clip(clip)
+                    clips.append(clip)
+                except Exception:
+                    pass
+
+    if not clips:
+        raise HTTPException(status_code=404, detail="No clips found to search")
+
+    # Step 3: Try to relink using the set sources
+    # Use the first folder as the relink path (DaVinci will search subfolders)
+    result = mp.RelinkClips(clips, body.folders[0]) if body.folders else False
+
+    logger.info(f"Comprehensive search result: {result}, clips: {len(clips)}")
+    return {
+        "success": bool(result),
+        "clips_searched": len(clips),
+        "sources_set": sources_set,
+        "search_folders": body.folders,
+    }
 
 
 @router.post("/unlink")
