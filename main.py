@@ -41,13 +41,13 @@ logger = logging.getLogger("davinci-wrapper")
 
 def create_app() -> FastAPI:
     app = FastAPI(
-        title="DaVinci Resolve Wrapper API",
+        title="DaVinci Resolve API",
         description=(
-            "HTTP API wrapper for DaVinci Resolve Studio. "
-            "Exposes the full scripting API as REST endpoints so AI agents "
-            "and pipelines can control Resolve without scripts inside Resolve."
+            "UUID-based REST API for DaVinci Resolve Studio. "
+            "Control projects, media pool, timelines, and render queue. "
+            "Built for AI agents and video editing pipelines."
         ),
-        version="1.0.0",
+        version="2.0.0",
         docs_url="/docs",
         redoc_url="/redoc",
         openapi_url="/openapi.json",
@@ -68,8 +68,8 @@ def create_app() -> FastAPI:
     async def root():
         return {
             "name": "DaVinci Resolve Wrapper API",
-            "version": "1.0.0",
-            "resolve_api": "DaVinci Resolve Scripting API v20.3",
+            "version": "2.0.0",
+            "resolve_api": "DaVinci Resolve Scripting API v20+",
             "docs": "/docs",
             "health": "/api/resolve/health",
         }
@@ -87,11 +87,14 @@ def create_app() -> FastAPI:
                 "executable": paths["executable"],
             },
             "api_groups": [
-                {"name": "Resolve", "path": "/api/resolve", "description": "App control, pages, presets"},
-                {"name": "Projects", "path": "/api/projects", "description": "Project CRUD, archive/restore, database"},
-                {"name": "Media", "path": "/api/media", "description": "MediaPool, clips, folders, import, relink"},
-                {"name": "Render", "path": "/api/render", "description": "Render queue, presets, formats, codecs"},
-                {"name": "Timeline", "path": "/api/timeline", "description": "Timelines, tracks, markers"},
+                {"name": "Project", "path": "/api/project", "description": "Save, close project"},
+                {"name": "Resolve", "path": "/api/resolve", "description": "Health, quit DaVinci"},
+                {"name": "Render", "path": "/api/render", "description": "Render queue, presets, settings"},
+                {"name": "Clips", "path": "/api/clips", "description": "List, offline, relink clips"},
+                {"name": "Timelines", "path": "/api/timelines", "description": "List timelines"},
+                {"name": "Media", "path": "/api/media", "description": "Import media"},
+                {"name": "Timeline", "path": "/api/timeline", "description": "Insert clips at cursor"},
+                {"name": "Registry", "path": "/api/registry", "description": "UUID-based project/folder access"},
             ],
         }
 
