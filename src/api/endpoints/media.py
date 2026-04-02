@@ -172,11 +172,11 @@ async def get_media_pool():
         current = mp.GetCurrentFolder()
         root = mp.GetRootFolder()
 
-        # Build full path: walk from root to current using GetParentFolder chain
-        root_name = root.GetName() if root else None
-        # Always get fresh folder from DaVinci, not from cache
+        # Build full path: use tracked path from navigate() for accuracy
+        # Get fresh folder object from DaVinci for clip/subfolder operations
         current = mp.GetCurrentFolder()
-        current_name = current.GetName() if current else None
+        current_name = rc.get_mp_folder_path()  # tracked path: "Master/.../Internal"
+        root_name = root.GetName() if root else None
 
         # Subfolders of CURRENT folder, not root
         subfolders = []
