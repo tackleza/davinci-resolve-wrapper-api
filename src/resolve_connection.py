@@ -148,7 +148,7 @@ def set_mp_folder_path(path: str):
 
 
 def get_mp_folder_path() -> str:
-    """Return the current Media Pool folder path, recovered by walking up the folder tree."""
+    """Return the current Media Pool folder path by walking from current folder up to root."""
     try:
         mp = get_media_pool()
         current = mp.GetCurrentFolder()
@@ -160,23 +160,31 @@ def get_mp_folder_path() -> str:
         # Walk from current folder up to root to build full path
         parts = []
         folder = current
-        while folder and folder != root:
+        visited = set()  # prevent infinite loop
+        while folder and id(folder) not in visited:
+            visited.add(id(folder))
             try:
                 name = folder.GetName()
                 parts.append(name)
-                folder = folder.GetParentFolder()
+                parent = folder.GetParentFolder()
+                if parent is None or parent == root:
+                    # Reached top
+                    break
+                folder = parent
             except Exception:
                 break
 
         if parts:
             parts.reverse()
-            # Prepend root name
             try:
                 root_name = root.GetName() if root else "Master"
             except Exception:
                 root_name = "Master"
-            full_path = root_name + "/" + "/".join(parts)
-            # Update tracked path
+            # If only one part and it equals root name, we're at root
+            if len(parts) == 1 and parts[0] == root_name:
+                full_path = root_name
+            else:
+                full_path = root_name + "/" + "/".join(parts)
             _current_mp_folder_path = full_path
             return full_path
         else:
