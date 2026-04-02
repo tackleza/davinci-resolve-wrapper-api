@@ -173,20 +173,10 @@ async def get_media_pool():
         root = mp.GetRootFolder()
 
         # Build full path: walk from root to current
-        def get_full_path(folder, root):
-            if folder is None:
-                return None
-            path_parts = []
-            # Walk up from current to root
-            def walk_up(f, parts):
-                parent = f.GetParentFolder()
-                if parent:
-                    walk_up(parent, parts)
-                parts.append(f.GetName())
-            walk_up(folder, path_parts)
-            return "/".join(path_parts) if path_parts else folder.GetName()
-
-        current_name = get_full_path(current, root) if current else None
+        # Use tracked path (SetCurrentFolder tracks path via /api/media/navigate)
+        # Fall back to folder name if no tracked path
+        tracked_path = rc.get_mp_folder_path()
+        current_name = tracked_path if tracked_path else (current.GetName() if current else None)
         root_name = root.GetName() if root else None
 
         # Subfolders of CURRENT folder, not root
@@ -304,8 +294,9 @@ async def navigate_to_folder(body: dict):
             raise HTTPException(status_code=404, detail=f"Folder '{part}' not found in path")
         current = found
 
-    # Set as current folder
+    # Set as current folder and track the path
     mp.SetCurrentFolder(current)
+    rc.set_mp_folder_path(folder_path)
 
     # Return clips in this folder
     clips = []

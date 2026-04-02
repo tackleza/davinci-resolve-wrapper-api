@@ -43,6 +43,9 @@ _clip_registry: dict[str, Any] = {}  # media_id -> MediaPoolItem
 # Track timeline items by composite key: (timeline_index, track_type, track_index, item_index) -> TimelineItem
 _timeline_item_registry: dict[tuple, Any] = {}
 
+# Track current Media Pool folder path for full path reconstruction
+_current_mp_folder_path: str = "Master"
+
 
 def _setup_environment() -> None:
     """
@@ -136,6 +139,17 @@ def get_media_storage() -> Any:
     if _media_storage is None:
         _media_storage = get_resolve().GetMediaStorage()
     return _media_storage
+
+
+def set_mp_folder_path(path: str):
+    """Track the current Media Pool folder path (since GetParentFolder doesn't work reliably)."""
+    global _current_mp_folder_path
+    _current_mp_folder_path = path
+
+
+def get_mp_folder_path() -> str:
+    """Return the tracked current Media Pool folder path."""
+    return _current_mp_folder_path
 
 
 def get_media_pool() -> Any:
