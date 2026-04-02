@@ -161,18 +161,39 @@ async def import_media(body: ImportMediaRequest):
 
 @router.get("/pool", response_model=MediaPoolResponse)
 async def get_media_pool():
-    """Get current Media Pool structure."""
+    """
+    Get current Media Pool structure.
+    
+    - current_folder: full path from root to current folder (e.g. 'Master/Tackle4826-Common/Outtro')
+    - subfolders: subfolders of the CURRENT folder (not root)
+    """
     mp = rc.get_media_pool()
     try:
         current = mp.GetCurrentFolder()
         root = mp.GetRootFolder()
-        current_name = current.GetName() if current else None
+
+        # Build full path: walk from root to current
+        def get_full_path(folder, root):
+            if folder is None:
+                return None
+            path_parts = []
+            # Walk up from current to root
+            def walk_up(f, parts):
+                parent = f.GetParentFolder()
+                if parent:
+                    walk_up(parent, parts)
+                parts.append(f.GetName())
+            walk_up(folder, path_parts)
+            return "/".join(path_parts) if path_parts else folder.GetName()
+
+        current_name = get_full_path(current, root) if current else None
         root_name = root.GetName() if root else None
 
+        # Subfolders of CURRENT folder, not root
         subfolders = []
-        if root:
+        if current:
             try:
-                for sf in root.GetSubFolderList():
+                for sf in current.GetSubFolderList() or []:
                     try:
                         subfolders.append(FolderInfo(
                             name=sf.GetName() if hasattr(sf, 'GetName') else str(sf),
