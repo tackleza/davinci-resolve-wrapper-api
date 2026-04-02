@@ -141,6 +141,11 @@ class CreateFolderRequest(BaseModel):
     parent_folder: Optional[str] = None  # if None, creates in current folder
 
 
+class FolderDeleteRequest(BaseModel):
+    name: str = Field(description="Name of the folder to delete")
+    force: bool = Field(default=False, description="If True, deletes even if folder contains clips")
+
+
 class FolderInfo(BaseModel):
     name: str
     clip_count: Optional[int] = None

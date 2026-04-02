@@ -65,6 +65,21 @@ async def list_timelines():
     return TimelineListResponse(timelines=timelines, current=current_name)
 
 
+@router.get("/by-name/{name}")
+async def get_timeline_by_name(name: str):
+    """Find a timeline by name. Returns index and info."""
+    project = rc.get_project()
+    count = project.GetTimelineCount() or 0
+    for i in range(1, count + 1):
+        try:
+            tl = project.GetTimelineByIndex(i)
+            if tl and tl.GetName() == name:
+                return {"success": True, "name": name, "index": i, "found": True}
+        except Exception:
+            pass
+    raise HTTPException(status_code=404, detail=f"Timeline '{name}' not found")
+
+
 @router.get("/current", response_model=TimelineCurrentResponse)
 async def get_current_timeline():
     """Get info about the currently active timeline."""
@@ -484,6 +499,95 @@ async def item_reposition(
     except Exception as e:
         return TimelineItemOperationResponse(success=False, message=str(e))
 
+
+# ─── Timeline Duplicate ───────────────────────────────────────────────────────
+
+from src.models.timeline_models import (
+    TimelineDuplicateRequest,
+    TimelineDeleteItemsRequest,
+    TimelineAddClipsRequest,
+)
+
+
+@router.post("/duplicate")
+async def duplicate_timeline(body: TimelineDuplicateRequest):
+    """Duplicate an existing timeline by index."""
+    project = rc.get_project()
+    tl = project.GetTimelineByIndex(body.timeline_index)
+    if not tl:
+        raise HTTPException(status_code=404, detail=f"Timeline {body.timeline_index} not found")
+    try:
+        new_tl = project.DuplicateTimeline(tl, body.new_name)
+        if not new_tl:
+            raise HTTPException(status_code=400, detail="Duplication failed")
+        return {"success": True, "new_timeline": new_tl.GetName(), "index": project.GetTimelineCount()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.post("/items/delete")
+async def delete_timeline_items(body: TimelineDeleteItemsRequest):
+    """Delete items from a timeline track."""
+    project = rc.get_project()
+    tl = project.GetTimelineByIndex(body.timeline_index)
+    if not tl:
+        raise HTTPException(status_code=404, detail=f"Timeline {body.timeline_index} not found")
+
+    deleted = 0
+    errors = []
+    for item_idx in body.item_indices:
+        try:
+            items = tl.GetItemsInTrack(body.track_type, body.track_index) or {}
+            item_keys = sorted(items.keys())
+            if item_idx < 1 or item_idx > len(item_keys):
+                errors.append(f"Item index {item_idx} out of range")
+                continue
+            item = items.get(item_keys[item_idx - 1])
+            if item and tl.DeleteItem(item):
+                deleted += 1
+        except Exception as e:
+            errors.append(f"Item {item_idx}: {str(e)}")
+
+    return {"success": deleted > 0, "deleted": deleted, "errors": errors if errors else None}
+
+
+@router.post("/add-clips")
+async def add_clips_to_timeline(body: TimelineAddClipsRequest):
+    """
+    Add clips from the Media Pool to a timeline.
+    Uses mp.AppendToTimeline() for each clip.
+    """
+    project = rc.get_project()
+    mp = project.GetMediaPool()
+
+    # Resolve timeline
+    if body.timeline_index:
+        tl = project.GetTimelineByIndex(body.timeline_index)
+        if not tl:
+            raise HTTPException(status_code=404, detail=f"Timeline {body.timeline_index} not found")
+        project.SetCurrentTimeline(tl)
+    else:
+        tl = project.GetCurrentTimeline()
+        if not tl:
+            raise HTTPException(status_code=400, detail="No current timeline")
+
+    added = 0
+    errors = []
+    for media_id in body.media_pool_item_ids:
+        try:
+            clip = rc.get_clip_by_id(media_id)
+            result = mp.AppendToTimeline(clip)
+            if result:
+                added += 1
+            else:
+                errors.append(f"{media_id}: AppendToTimeline returned False")
+        except Exception as e:
+            errors.append(f"{media_id}: {str(e)}")
+
+    return {"success": added > 0, "added": added, "total": len(body.media_pool_item_ids), "errors": errors if errors else None}
+
+
+# ─── Project Settings ─────────────────────────────────────────────────────────
 
 # ─── Fusion ───────────────────────────────────────────────────────────────────
 

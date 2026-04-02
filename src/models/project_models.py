@@ -86,3 +86,22 @@ class DatabaseInfoResponse(BaseModel):
     db_type: str
     db_name: str
     ip_address: Optional[str] = None
+
+
+# ─── Project Settings ────────────────────────────────────────────────────────
+
+class ProjectSettingsResponse(BaseModel):
+    """Current project settings."""
+    frame_rate: float
+    resolution_width: int
+    resolution_height: int
+    proxy_mode: str
+    color_space: str
+    gamma: str
+    settings: dict[str, str] = Field(default_factory=dict, description="All project settings as key-value pairs")
+
+
+class ProjectSettingRequest(BaseModel):
+    """Set a specific project setting."""
+    key: str = Field(description="Setting name, e.g. 'timelineFrameRate'")
+    value: str = Field(description="Setting value")

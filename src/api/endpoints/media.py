@@ -25,6 +25,7 @@ from src.models.media_models import (
     FlagListResponse,
     SetMetadataRequest,
     CreateFolderRequest,
+    FolderDeleteRequest,
     MediaPoolResponse,
     FolderInfo,
     FileListResponse,
@@ -519,6 +520,39 @@ async def move_clips(body: ClipMoveRequest):
 
     result = mp.MoveClips(clips, target_folder)
     return {"success": bool(result)}
+
+
+@router.post("/folder/delete")
+async def delete_media_folder(body: FolderDeleteRequest):
+    """
+    Delete a folder from the current Media Pool location.
+    Note: Only works when current folder is not a root. Use /api/projects/folders/delete for project-level folders.
+    """
+    mp = rc.get_media_pool()
+    current = mp.GetCurrentFolder()
+    if not current:
+        raise HTTPException(status_code=400, detail="No current folder set")
+    
+    # Search for subfolder with matching name
+    target = None
+    for f in current.GetSubFolderList():
+        try:
+            if f.GetName() == body.name:
+                target = f
+                break
+        except Exception:
+            pass
+    
+    if not target:
+        raise HTTPException(status_code=404, detail=f"Folder '{body.name}' not found")
+    
+    if not body.force:
+        clips = target.GetClipList()
+        if clips:
+            raise HTTPException(status_code=400, detail=f"Folder '{body.name}' contains {len(clips)} clips. Use force=true to delete anyway.")
+    
+    result = mp.DeleteFolders([target])
+    return {"success": bool(result), "deleted": body.name}
 
 
 # ─── Batch Import ───────────────────────────────────────────────────────────

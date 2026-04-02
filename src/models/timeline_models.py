@@ -308,3 +308,28 @@ class TimelineTrackInfo(BaseModel):
     track_index: int  # 1-based
     track_name: Optional[str] = None
     item_count: int
+
+
+# ─── Timeline Duplicate ──────────────────────────────────────────────────────
+
+class TimelineDuplicateRequest(BaseModel):
+    timeline_index: int = Field(description="1-based index of timeline to duplicate")
+    new_name: str = Field(description="Name for the duplicated timeline")
+
+
+# ─── Timeline Item Delete ─────────────────────────────────────────────────────
+
+class TimelineDeleteItemsRequest(BaseModel):
+    timeline_index: int = Field(description="1-based index of timeline")
+    track_type: str = Field(description="video, audio, or subtitle")
+    track_index: int = Field(description="1-based track index")
+    item_indices: list[int] = Field(description="1-based indices of items to delete")
+
+
+# ─── Timeline Add Clips ──────────────────────────────────────────────────────
+
+class TimelineAddClipsRequest(BaseModel):
+    media_pool_item_ids: list[str] = Field(description="media_id strings from the Media Pool")
+    timeline_index: int | None = Field(default=None, description="Optional: 1-based timeline index. Uses current timeline if omitted.")
+    track_index: int | None = Field(default=None, description="Optional: 1-based track index. Auto-selects if omitted.")
+    insert_position: int | None = Field(default=None, description="Optional: frame to insert at. Appends to end if omitted.")

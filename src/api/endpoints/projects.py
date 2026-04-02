@@ -24,6 +24,8 @@ from src.models.project_models import (
     DatabaseInfoResponse,
     DatabaseListResponse,
     SetDatabaseRequest,
+    ProjectSettingsResponse,
+    ProjectSettingRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -236,3 +238,49 @@ async def set_database(body: SetDatabaseRequest):
     if not result:
         raise HTTPException(status_code=400, detail="Failed to switch database")
     return {"success": True, "database": body.db_name}
+
+
+@router.get("/settings", response_model=ProjectSettingsResponse)
+async def get_project_settings():
+    """Get current project settings (frame rate, resolution, color space, proxy mode, etc.)."""
+    project = rc.get_project()
+    try:
+        fr = project.GetSetting("timelineFrameRate") or "30.0"
+        w = project.GetSetting("timelineResolutionWidth") or "1920"
+        h = project.GetSetting("timelineResolutionHeight") or "1080"
+        proxy = project.GetSetting("proxyMode") or "off"
+        colorspace = project.GetSetting("colorSpaceInput") or ""
+        gamma = project.GetSetting("gammaInput") or ""
+        all_settings = {}
+        for key in ["timelineFrameRate", "timelineResolutionWidth", "timelineResolutionHeight",
+                    "proxyMode", "colorSpaceInput", "gammaInput", "monitorOutResolution",
+                    "monitorOutFrameRate", "renderCacheMode", "gpuAccelMode",
+                    "fieldDominance", "deinterlaceMode"]:
+            try:
+                val = project.GetSetting(key)
+                if val:
+                    all_settings[key] = val
+            except Exception:
+                pass
+        return ProjectSettingsResponse(
+            frame_rate=float(fr),
+            resolution_width=int(w),
+            resolution_height=int(h),
+            proxy_mode=proxy,
+            color_space=colorspace,
+            gamma=gamma,
+            settings=all_settings,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.post("/settings")
+async def set_project_setting(body: ProjectSettingRequest):
+    """Set a specific project setting."""
+    project = rc.get_project()
+    try:
+        result = project.SetSetting(body.key, body.value)
+        return {"success": bool(result), "key": body.key, "value": body.value}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
