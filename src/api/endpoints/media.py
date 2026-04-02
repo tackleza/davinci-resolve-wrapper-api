@@ -160,12 +160,13 @@ async def import_media(body: ImportMediaRequest):
 # ─── Media Pool Navigation ───────────────────────────────────────────────────
 
 @router.get("/pool", response_model=MediaPoolResponse)
-async def get_media_pool():
+async def get_media_pool(recursive: bool = Query(False, description="If true, collect clips from current folder AND all subfolders recursively")):
     """
     Get current Media Pool structure.
     
     - current_folder: full path from root to current folder (e.g. 'Master/Tackle4826-Common/Outtro')
     - subfolders: subfolders of the CURRENT folder (not root)
+    - clips: clips in the CURRENT folder only (use recursive=true to include subfolders)
     """
     mp = rc.get_media_pool()
     try:
@@ -173,8 +174,6 @@ async def get_media_pool():
         root = mp.GetRootFolder()
 
         # Build full path: use tracked path from navigate() for accuracy
-        # Get fresh folder object from DaVinci for clip/subfolder operations
-        current = mp.GetCurrentFolder()
         current_name = rc.get_mp_folder_path()  # tracked path: "Master/.../Internal"
         root_name = root.GetName() if root else None
 
@@ -193,27 +192,12 @@ async def get_media_pool():
             except Exception:
                 pass
 
-        # Clips in CURRENT folder — try GetClipList first, fall back to GetItemList
-        clips = []
-        if current:
-            # Method 1: GetClipList (video/audio clips)
-            clip_items = []
-            try:
-                clip_items = current.GetClipList() or []
-            except Exception:
-                pass
-
-            # Method 2: GetItemList (includes stills, generators, etc.)
-            item_items = []
-            try:
-                if hasattr(current, 'GetItemList'):
-                    item_items = current.GetItemList() or []
-            except Exception:
-                pass
-
-            # Combine both, deduplicate by mediaId
+        # Collect clips from folder(s)
+        def collect_clips(folder) -> list:
+            result = []
             seen_ids = set()
-            for clip in clip_items + item_items:
+            # GetClipList + GetItemList from this folder
+            for clip in (folder.GetClipList() or []) + (folder.GetItemList() if hasattr(folder, 'GetItemList') and folder.GetItemList else []):
                 try:
                     media_id = str(clip.GetMediaId())
                     if media_id in seen_ids:
@@ -221,7 +205,7 @@ async def get_media_pool():
                     seen_ids.add(media_id)
                     rc.register_clip(clip)
                     props = clip.GetClipProperty() or {}
-                    clips.append(ClipInfo(
+                    result.append(ClipInfo(
                         name=clip.GetName(),
                         media_id=media_id,
                         duration=props.get("Duration"),
@@ -230,6 +214,15 @@ async def get_media_pool():
                     ))
                 except Exception:
                     pass
+            if recursive:
+                for sf in folder.GetSubFolderList() or []:
+                    try:
+                        result.extend(collect_clips(sf))
+                    except Exception:
+                        pass
+            return result
+
+        clips = collect_clips(current) if current else []
 
         return MediaPoolResponse(
             current_folder=current_name,
