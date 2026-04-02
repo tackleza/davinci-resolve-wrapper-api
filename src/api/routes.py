@@ -2,6 +2,7 @@
 routes.py — FastAPI route registration
 """
 
+import os
 from fastapi import APIRouter
 
 from src.api.endpoints import (
@@ -20,3 +21,15 @@ def register_routes(app):
     app.include_router(media_router)
     app.include_router(render_router)
     app.include_router(timeline_router)
+
+    @app.post("/shutdown")
+    async def shutdown_wrapper():
+        """
+        Signal the wrapper to shut down (for restarting).
+        Writes a sentinel file — your restart script watches this and kills the process.
+        """
+        pid = os.getpid()
+        sentinel = "C:\\Users\\Tackle\\davinci_wrapper\\.restart_sentinel"
+        with open(sentinel, "w") as f:
+            f.write(str(pid))
+        return {"success": True, "pid": pid, "sentinel_created": True}
