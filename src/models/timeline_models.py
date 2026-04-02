@@ -2,7 +2,7 @@
 timeline_models.py — Pydantic models for Timeline / Render endpoints
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 
 

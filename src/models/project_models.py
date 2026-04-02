@@ -2,7 +2,7 @@
 project_models.py — Pydantic models for Project/ProjectManager endpoints
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 
 

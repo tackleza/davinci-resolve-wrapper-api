@@ -2,7 +2,7 @@
 media_models.py — Pydantic models for MediaPool / Media Storage endpoints
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 
 
