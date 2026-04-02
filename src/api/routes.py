@@ -25,11 +25,15 @@ def register_routes(app):
     @app.post("/shutdown")
     async def shutdown_wrapper():
         """
-        Signal the wrapper to shut down (for restarting).
-        Writes a sentinel file — your restart script watches this and kills the process.
+        Shutdown the wrapper API server (for restarting).
+        Writes sentinel, then terminates the process immediately.
         """
         pid = os.getpid()
         sentinel = "C:\\Users\\Tackle\\davinci_wrapper\\.restart_sentinel"
         with open(sentinel, "w") as f:
             f.write(str(pid))
-        return {"success": True, "pid": pid, "sentinel_created": True}
+        # Kill the current process immediately
+        import sys
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(0)
