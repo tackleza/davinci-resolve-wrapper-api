@@ -5,8 +5,8 @@ POST /api/render/*
 """
 
 import logging
-from fastapi import APIRouter, HTTPException
-from src.models.timeline_models import RenderProgressResponse, Query
+from fastapi import APIRouter, HTTPException, Query
+from src.models.timeline_models import RenderProgressResponse
 
 import src.resolve_connection as rc
 from src.models.timeline_models import (
