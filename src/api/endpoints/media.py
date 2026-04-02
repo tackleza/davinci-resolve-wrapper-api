@@ -226,6 +226,79 @@ async def create_media_folder(name: str, parent_folder: str | None = None):
 
 # ─── Clips ──────────────────────────────────────────────────────────────────
 
+@router.get("/folders")
+async def list_all_folders():
+    """
+    Recursively list all folders in the Media Pool.
+    Returns folder path strings that can be used with /api/media/navigate.
+    """
+    mp = rc.get_media_pool()
+    root = mp.GetRootFolder()
+    result = []
+
+    def walk(folder, parent_path=""):
+        name = folder.GetName()
+        path = f"{parent_path}/{name}" if parent_path else name
+        result.append({"name": name, "path": path})
+        for sub in folder.GetSubFolderList() or []:
+            try:
+                walk(sub, path)
+            except Exception:
+                pass
+
+    walk(root)
+    return {"folders": result}
+
+
+@router.post("/navigate")
+async def navigate_to_folder(body: dict):
+    """
+    Navigate to a specific folder in the Media Pool by path.
+    Body: {"path": "Master/Tackle4826-Common/Outtro"}
+    Returns success and the folder's clips.
+    """
+    folder_path = body.get("path", "")
+    if not folder_path:
+        raise HTTPException(status_code=400, detail="path is required")
+
+    mp = rc.get_media_pool()
+    parts = [p for p in folder_path.split("/") if p]
+
+    # Start from root
+    current = mp.GetRootFolder()
+    if not current:
+        raise HTTPException(status_code=500, detail="Could not get root folder")
+
+    # Navigate step by step
+    for part in parts:
+        found = None
+        for sub in current.GetSubFolderList() or []:
+            try:
+                if sub.GetName() == part:
+                    found = sub
+                    break
+            except Exception:
+                pass
+        if not found:
+            raise HTTPException(status_code=404, detail=f"Folder '{part}' not found in path")
+        current = found
+
+    # Set as current folder
+    mp.SetCurrentFolder(current)
+
+    # Return clips in this folder
+    clips = []
+    for clip in current.GetClipList() or []:
+        try:
+            media_id = str(clip.GetMediaId())
+            rc.register_clip(clip)
+            clips.append({"name": clip.GetName(), "media_id": media_id})
+        except Exception:
+            pass
+
+    return {"success": True, "folder": current.GetName(), "clips": clips, "clip_count": len(clips)}
+
+
 @router.get("/clips", response_model=ClipListResponse)
 async def list_clips(folder_name: str | None = None):
     """Get clips in the current Media Pool folder (or a named subfolder)."""
