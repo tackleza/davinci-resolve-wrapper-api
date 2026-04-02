@@ -3,6 +3,7 @@ routes.py — FastAPI route registration
 """
 
 import os
+import subprocess
 from fastapi import APIRouter
 
 from src.api.endpoints import (
@@ -26,14 +27,11 @@ def register_routes(app):
     async def shutdown_wrapper():
         """
         Shutdown the wrapper API server (for restarting).
-        Writes sentinel, then terminates the process immediately.
+        Uses taskkill on Windows to terminate the process.
         """
         pid = os.getpid()
         sentinel = "C:\\Users\\Tackle\\davinci_wrapper\\.restart_sentinel"
         with open(sentinel, "w") as f:
             f.write(str(pid))
-        # Kill the current process immediately
-        import sys
-        sys.stdout.flush()
-        sys.stderr.flush()
-        os._exit(0)
+        subprocess.Popen(f"taskkill /F /PID {pid}", shell=False)
+        return {"success": True, "pid": pid}
