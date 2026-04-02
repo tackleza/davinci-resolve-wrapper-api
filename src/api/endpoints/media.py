@@ -194,27 +194,43 @@ async def get_media_pool():
             except Exception:
                 pass
 
-        # Clips in CURRENT folder
+        # Clips in CURRENT folder — try GetClipList first, fall back to GetItemList
         clips = []
         if current:
+            # Method 1: GetClipList (video/audio clips)
+            clip_items = []
             try:
-                for clip in current.GetClipList() or []:
-                    try:
-                        media_id = str(clip.GetMediaId())
-                        rc.register_clip(clip)
-                        # Get what properties we can quickly
-                        props = clip.GetClipProperty() or {}
-                        clips.append(ClipInfo(
-                            name=clip.GetName(),
-                            media_id=media_id,
-                            duration=props.get("Duration"),
-                            proxy=props.get("Proxy Media Path"),
-                            audio_tracks=None,
-                        ))
-                    except Exception:
-                        pass
+                clip_items = current.GetClipList() or []
             except Exception:
                 pass
+
+            # Method 2: GetItemList (includes stills, generators, etc.)
+            item_items = []
+            try:
+                if hasattr(current, 'GetItemList'):
+                    item_items = current.GetItemList() or []
+            except Exception:
+                pass
+
+            # Combine both, deduplicate by mediaId
+            seen_ids = set()
+            for clip in clip_items + item_items:
+                try:
+                    media_id = str(clip.GetMediaId())
+                    if media_id in seen_ids:
+                        continue
+                    seen_ids.add(media_id)
+                    rc.register_clip(clip)
+                    props = clip.GetClipProperty() or {}
+                    clips.append(ClipInfo(
+                        name=clip.GetName(),
+                        media_id=media_id,
+                        duration=props.get("Duration"),
+                        proxy=props.get("Proxy Media Path"),
+                        audio_tracks=None,
+                    ))
+                except Exception:
+                    pass
 
         return MediaPoolResponse(
             current_folder=current_name,
@@ -225,6 +241,50 @@ async def get_media_pool():
     except Exception as e:
         logger.error(f"Error getting media pool: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/pool/debug")
+async def debug_media_pool():
+    """Debug endpoint: dump all items in current folder using all known methods."""
+    mp = rc.get_media_pool()
+    try:
+        current = mp.GetCurrentFolder()
+        result = {"folder_name": current.GetName() if current else None}
+
+        # Try GetClipList
+        try:
+            clips = current.GetClipList() or []
+            result["GetClipList"] = [{"name": c.GetName(), "mediaId": c.GetMediaId()} for c in clips]
+        except Exception as e:
+            result["GetClipList"] = f"Error: {e}"
+
+        # Try GetItemList
+        try:
+            if hasattr(current, 'GetItemList'):
+                items = current.GetItemList() or []
+                result["GetItemList"] = [{"name": i.GetName(), "mediaId": i.GetMediaId()} for i in items]
+            else:
+                result["GetItemList"] = "Method not available"
+        except Exception as e:
+            result["GetItemList"] = f"Error: {e}"
+
+        # Try GetSubFolderList
+        try:
+            folders = current.GetSubFolderList() or []
+            result["GetSubFolderList"] = [f.GetName() for f in folders]
+        except Exception as e:
+            result["GetSubFolderList"] = f"Error: {e}"
+
+        # List all callable methods on the folder object
+        try:
+            methods = [m for m in dir(current) if not m.startswith('_') and callable(getattr(current, m, None))]
+            result["all_methods"] = methods
+        except Exception:
+            pass
+
+        return result
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @router.get("/folder/create", response_model=FolderInfo)
