@@ -276,9 +276,14 @@ async def navigate_to_folder(body: dict):
     parts = [p for p in folder_path.split("/") if p]
 
     # Start from root
-    current = mp.GetRootFolder()
-    if not current:
+    root = mp.GetRootFolder()
+    if not root:
         raise HTTPException(status_code=500, detail="Could not get root folder")
+    current = root
+
+    # If first part matches root name, skip it (root is the root itself)
+    if parts and parts[0] == root.GetName():
+        parts = parts[1:]
 
     # Navigate step by step
     for part in parts:
