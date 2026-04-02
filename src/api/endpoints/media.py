@@ -194,10 +194,33 @@ async def get_media_pool():
             except Exception:
                 pass
 
+        # Clips in CURRENT folder
+        clips = []
+        if current:
+            try:
+                for clip in current.GetClipList() or []:
+                    try:
+                        media_id = str(clip.GetMediaId())
+                        rc.register_clip(clip)
+                        # Get what properties we can quickly
+                        props = clip.GetClipProperty() or {}
+                        clips.append(ClipInfo(
+                            name=clip.GetName(),
+                            media_id=media_id,
+                            duration=props.get("Duration"),
+                            proxy=props.get("Proxy Media Path"),
+                            audio_tracks=None,
+                        ))
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
         return MediaPoolResponse(
             current_folder=current_name,
             root_folder=root_name,
-            subfolders=subfolders
+            subfolders=subfolders,
+            clips=clips,
         )
     except Exception as e:
         logger.error(f"Error getting media pool: {e}")

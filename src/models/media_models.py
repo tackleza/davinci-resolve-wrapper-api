@@ -155,6 +155,7 @@ class MediaPoolResponse(BaseModel):
     current_folder: Optional[str] = None
     root_folder: Optional[str] = None
     subfolders: list[FolderInfo]
+    clips: list[ClipInfo] = Field(default_factory=list)
 
 
 class FolderCreateResponse(BaseModel):
